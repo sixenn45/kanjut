@@ -9,7 +9,7 @@ from telethon.sessions import StringSession
 from telethon.tl.types import BotCommand, BotCommandScopeDefault
 from telethon.tl.custom import Button
 
-# Logging (ubah ke WARNING kalau log terlalu banyak)
+# Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -67,15 +67,6 @@ clients = {}
 # BOT CLIENT
 bot = TelegramClient('bot', API_ID, API_HASH)
 
-# EMOJI RANDOM
-def generate_random_emoji():
-    emojis = ['🔥','😈','💀','👹','⚡','🎯','🚀','💥','💰','💸','🤑','💎','⭐','🐍','🦂','🔫','💣']
-    return ' '.join(random.sample(emojis, k=random.randint(2, 5)))
-
-def add_emoji(pesan):
-    em = generate_random_emoji()
-    return f"{em} {pesan} {em}"
-
 # GET CLIENT
 async def get_client(name):
     if name not in akun_data:
@@ -92,7 +83,7 @@ async def get_client(name):
             return None
     return clients.get(name)
 
-# SPAM LOOP (serentak ke semua grup)
+# SPAM LOOP (serentak ke semua grup, tanpa emoji)
 async def spam_loop(name):
     client = await get_client(name)
     if not client: return
@@ -102,8 +93,6 @@ async def spam_loop(name):
             await asyncio.sleep(10)
             continue
         pesan = random.choice(data['pesan_list'])
-        if data.get('auto_emoji', True):
-            pesan = add_emoji(pesan)
         
         # Kirim serentak ke semua grup
         for grup in data.get('groups', []):
@@ -180,7 +169,7 @@ async def set_bot_commands():
 @bot.on(events.NewMessage(pattern=r'^/menu$'))
 async def menu(event):
     menu_text = """
-🔥 **JINX SPAM BOT MENU** 🔥
+**JINX SPAM BOT MENU**
 
 /addakun nama session_string → Tambah akun baru
 /deleteakun nama → Hapus akun
@@ -202,14 +191,14 @@ async def menu(event):
 Gunakan di chat privat dengan bot!
     """
     buttons = [
-        [Button.inline("🔄 Refresh Menu", b'refresh_menu')],
-        [Button.url("📢 Join Channel Jinx", "https://t.me/jinxchannel")]
+        [Button.inline("Refresh Menu", b'refresh_menu')],
+        [Button.url("Join Channel Jinx", "https://t.me/jinxchannel")]
     ]
-    await event.reply(menu_text, buttons=buttons, parse_mode='md')
+    await event.reply(menu_text, buttons=buttons)
 
 @bot.on(events.CallbackQuery(data=b'refresh_menu'))
 async def refresh_menu(event):
-    await event.answer("Menu di-refresh! 🔥")
+    await event.answer("Menu di-refresh!")
     await menu(event)
 
 # COMMAND ADD AKUN
@@ -224,7 +213,6 @@ async def add_akun(event):
         "groups": [],
         "pesan_list": [],
         "forward_sources": [],
-        "auto_emoji": True,
         "delay": 90,
         "jitter": 20,
         "forward_delay": 120,
@@ -233,7 +221,7 @@ async def add_akun(event):
     }
     save_account(name, data)
     akun_data[name] = data
-    await event.reply(f"✅ Akun '{name}' ditambahkan!")
+    await event.reply(f"Akun '{name}' ditambahkan!")
     client = await get_client(name)
     if client:
         await event.reply(f"Login berhasil sebagai {name}")
@@ -249,7 +237,7 @@ async def delete_akun(event):
     del akun_data[name]
     if name in clients:
         del clients[name]
-    await event.reply(f"🗑️ Akun '{name}' dihapus!")
+    await event.reply(f"Akun '{name}' dihapus!")
 
 # COMMAND ADD PESAN
 @bot.on(events.NewMessage(pattern=r'^/addpesan (\S+) (.+)'))
@@ -260,7 +248,7 @@ async def add_pesan(event):
         return
     akun_data[name]['pesan_list'].append(pesan)
     save_account(name, akun_data[name])
-    await event.reply(f"✅ Pesan ditambahkan ke {name}")
+    await event.reply(f"Pesan ditambahkan ke {name}")
 
 # COMMAND DELETE PESAN
 @bot.on(events.NewMessage(pattern=r'^/deletepesan (\S+)'))
@@ -271,7 +259,7 @@ async def delete_pesan(event):
         return
     akun_data[name]['pesan_list'] = []
     save_account(name, akun_data[name])
-    await event.reply(f"🗑️ Semua pesan di {name} dihapus!")
+    await event.reply(f"Semua pesan di {name} dihapus!")
 
 # COMMAND ADD GRUP (spam + forward target)
 @bot.on(events.NewMessage(pattern=r'^/addgrup (\S+) (.+)'))
@@ -283,7 +271,7 @@ async def add_grup(event):
     if grup not in akun_data[name]['groups']:
         akun_data[name]['groups'].append(grup)
         save_account(name, akun_data[name])
-        await event.reply(f"✅ Grup {grup} ditambahkan ke {name} (spam + target forward)")
+        await event.reply(f"Grup {grup} ditambahkan ke {name} (spam + forward target)")
     else:
         await event.reply(f"Grup {grup} sudah ada di {name}")
 
@@ -297,7 +285,7 @@ async def forward_source(event):
     if source not in akun_data[name]['forward_sources']:
         akun_data[name]['forward_sources'].append(source)
         save_account(name, akun_data[name])
-        await event.reply(f"✅ Channel sumber {source} ditambahkan ke {name}")
+        await event.reply(f"Channel sumber {source} ditambahkan ke {name}")
     else:
         await event.reply(f"Channel {source} sudah ada di {name}")
 
