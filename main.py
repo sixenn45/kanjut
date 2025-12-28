@@ -124,11 +124,12 @@ async def forward_loop(name):
         for source in data.get('forward_sources', []):
             try:
                 async for msg in client.iter_messages(source, limit=1):
-                    for target in data.get('forward_targets', []):
-                        await client.forward_messages(target, msg)
-                        await asyncio.sleep(data.get('forward_delay', 120) + random.uniform(-data.get('jitter', 20), data.get('jitter', 20)))
+                    if msg:
+                        for target in data.get('forward_targets', []):
+                            await client.forward_messages(target, msg)
+                            await asyncio.sleep(data.get('forward_delay', 120) + random.uniform(-data.get('jitter', 20), data.get('jitter', 20)))
             except Exception as e:
-                logger.error(e)
+                logger.error(f"Error forward dari {source}: {e}")
         await asyncio.sleep(10)
 
 # START ALL LOOPS
@@ -140,7 +141,7 @@ async def start_loops():
         if data.get('forward_running', False):
             asyncio.create_task(forward_loop(name))
 
-# SET COMMAND RESMI (biar suggestion muncul pas ketik /)
+# SET COMMAND RESMI
 async def set_bot_commands():
     commands = [
         BotCommand('menu', 'Lihat semua command'),
@@ -149,11 +150,12 @@ async def set_bot_commands():
         BotCommand('addpesan', 'Tambah pesan spam'),
         BotCommand('deletepesan', 'Hapus semua pesan'),
         BotCommand('addgrup', 'Tambah grup target'),
+        BotCommand('forward_source', 'Tambah source forward'),
         BotCommand('forward_add', 'Tambah target forward'),
         BotCommand('listgrup', 'Lihat daftar grup'),
         BotCommand('listpesan', 'Lihat daftar pesan'),
-        BotCommand('setdelay', 'Atur delay spam (detik)'),
-        BotCommand('setjitter', 'Atur jitter random (± detik)'),
+        BotCommand('setdelay', 'Atur delay spam'),
+        BotCommand('setjitter', 'Atur jitter'),
         BotCommand('setdelay_forward', 'Atur delay forward'),
         BotCommand('spam_on', 'Nyalain spam'),
         BotCommand('spam_off', 'Matikan spam'),
@@ -163,7 +165,7 @@ async def set_bot_commands():
     ]
     try:
         await bot.set_bot_commands(commands, BotCommandScopeDefault(), 'id')
-        logger.info("Commands berhasil diset ke Telegram!")
+        logger.info("Commands berhasil diset!")
     except Exception as e:
         logger.error(f"Gagal set commands: {e}")
 
@@ -178,7 +180,8 @@ async def menu(event):
 /addpesan nama pesan → Tambah pesan spam
 /deletepesan nama → Hapus semua pesan
 /addgrup nama @grup → Tambah grup target
-/forward_add nama @channel → Tambah target forward
+/forward_source nama @source_channel → Tambah channel sumber forward
+/forward_add nama @target_channel → Tambah channel tujuan forward
 /listgrup nama → Lihat daftar grup
 /listpesan nama → Lihat daftar pesan
 /setdelay nama 90 → Atur delay spam
@@ -276,7 +279,18 @@ async def add_grup(event):
     save_account(name, akun_data[name])
     await event.reply(f"✅ Grup {grup} ditambahkan ke {name}")
 
-# COMMAND FORWARD ADD
+# COMMAND ADD SOURCE FORWARD
+@bot.on(events.NewMessage(pattern=r'^/forward_source (\S+) (.+)'))
+async def forward_source(event):
+    name, source = event.pattern_match.group(1), event.pattern_match.group(2)
+    if name not in akun_data:
+        await event.reply("Akun tidak ditemukan!")
+        return
+    akun_data[name]['forward_sources'].append(source)
+    save_account(name, akun_data[name])
+    await event.reply(f"✅ Source forward {source} ditambahkan ke {name}")
+
+# COMMAND ADD TARGET FORWARD
 @bot.on(events.NewMessage(pattern=r'^/forward_add (\S+) (.+)'))
 async def forward_add(event):
     name, target = event.pattern_match.group(1), event.pattern_match.group(2)
@@ -285,7 +299,7 @@ async def forward_add(event):
         return
     akun_data[name]['forward_targets'].append(target)
     save_account(name, akun_data[name])
-    await event.reply(f"✅ Forward target {target} ditambahkan ke {name}")
+    await event.reply(f"✅ Target forward {target} ditambahkan ke {name}")
 
 # COMMAND LIST GRUP
 @bot.on(events.NewMessage(pattern=r'^/listgrup (\S+)'))
@@ -392,13 +406,13 @@ async def cek_akun(event):
     text = "Daftar akun:\n"
     for name in akun_data:
         status = "Online" if name in clients else "Offline"
-        text += f"- {name}: {status} (pesan: {len(akun_data[name]['pesan_list'])}, grup: {len(akun_data[name]['groups'])})\n"
+        text += f"- {name}: {status} (pesan: {len(akun_data[name]['pesan_list'])}, grup: {len(akun_data[name]['groups'])}, source: {len(akun_data[name]['forward_sources'])}, target: {len(akun_data[name]['forward_targets'])})\n"
     await event.reply(text or "Belum ada akun!")
 
 # MAIN
 async def main():
     await bot.start(bot_token=BOT_TOKEN)
-    await set_bot_commands()  # Set command ke Telegram
+    await set_bot_commands()
     logger.info("Bot utama online!")
     await start_loops()
     await bot.run_until_disconnected()
