@@ -9,7 +9,7 @@ from telethon.sessions import StringSession
 from telethon.tl.types import BotCommand, BotCommandScopeDefault
 from telethon.tl.custom import Button
 
-# Logging
+# Logging (ubah ke WARNING kalau log terlalu banyak)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ async def get_client(name):
             return None
     return clients.get(name)
 
-# SPAM LOOP
+# SPAM LOOP (serentak ke semua grup)
 async def spam_loop(name):
     client = await get_client(name)
     if not client: return
@@ -104,18 +104,21 @@ async def spam_loop(name):
         pesan = random.choice(data['pesan_list'])
         if data.get('auto_emoji', True):
             pesan = add_emoji(pesan)
+        
+        # Kirim serentak ke semua grup
         for grup in data.get('groups', []):
             try:
                 await client.send_message(grup, pesan, silent=True)
-                await asyncio.sleep(data.get('delay', 90) + random.uniform(-data.get('jitter', 20), data.get('jitter', 20)))
             except errors.FloodWaitError as e:
                 logger.warning(f"Flood wait {e.seconds}s")
                 await asyncio.sleep(e.seconds)
             except Exception as e:
                 logger.error(e)
-        await asyncio.sleep(5)
+        
+        # Tunggu delay + jitter setelah kirim ke semua
+        await asyncio.sleep(data.get('delay', 90) + random.uniform(-data.get('jitter', 20), data.get('jitter', 20)))
 
-# FORWARD LOOP (ke semua groups)
+# FORWARD LOOP (serentak ke semua grup)
 async def forward_loop(name):
     client = await get_client(name)
     if not client: return
@@ -129,9 +132,10 @@ async def forward_loop(name):
             try:
                 async for msg in client.iter_messages(source, limit=1):
                     if msg:
+                        # Forward serentak ke semua grup
                         for target in data.get('groups', []):
                             await client.forward_messages(target, msg)
-                            await asyncio.sleep(data.get('forward_delay', 120) + random.uniform(-data.get('jitter', 20), data.get('jitter', 20)))
+                        await asyncio.sleep(data.get('forward_delay', 120) + random.uniform(-data.get('jitter', 20), data.get('jitter', 20)))
             except Exception as e:
                 logger.error(f"Error forward {name} dari {source}: {e}")
         await asyncio.sleep(10)
@@ -149,14 +153,14 @@ async def start_loops():
 async def set_bot_commands():
     commands = [
         BotCommand('menu', 'Lihat semua command'),
-        BotCommand('addakun', 'Tambah akun: nama session_string'),
+        BotCommand('addakun', 'Tambah akun'),
         BotCommand('deleteakun', 'Hapus akun'),
         BotCommand('addpesan', 'Tambah pesan spam'),
         BotCommand('deletepesan', 'Hapus semua pesan'),
         BotCommand('addgrup', 'Tambah grup (spam + forward target)'),
         BotCommand('forward_source', 'Tambah channel sumber forward'),
-        BotCommand('listgrup', 'Lihat daftar grup'),
-        BotCommand('listpesan', 'Lihat daftar pesan'),
+        BotCommand('listgrup', 'Lihat grup'),
+        BotCommand('listpesan', 'Lihat pesan'),
         BotCommand('setdelay', 'Atur delay spam'),
         BotCommand('setjitter', 'Atur jitter'),
         BotCommand('setdelay_forward', 'Atur delay forward'),
@@ -164,7 +168,7 @@ async def set_bot_commands():
         BotCommand('spam_off', 'Matikan spam'),
         BotCommand('forward_on', 'Nyalain forward'),
         BotCommand('forward_off', 'Matikan forward'),
-        BotCommand('cek_akun', 'Cek semua akun & status')
+        BotCommand('cek_akun', 'Cek akun')
     ]
     try:
         await bot.set_bot_commands(commands, BotCommandScopeDefault(), 'id')
@@ -269,7 +273,7 @@ async def delete_pesan(event):
     save_account(name, akun_data[name])
     await event.reply(f"🗑️ Semua pesan di {name} dihapus!")
 
-# COMMAND ADD GRUP (buat spam & forward target)
+# COMMAND ADD GRUP (spam + forward target)
 @bot.on(events.NewMessage(pattern=r'^/addgrup (\S+) (.+)'))
 async def add_grup(event):
     name, grup = event.pattern_match.group(1), event.pattern_match.group(2)
