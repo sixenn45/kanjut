@@ -3,11 +3,11 @@ import logging
 import sqlite3
 import json
 import random
-import re
 import os
 from telethon import TelegramClient, events, errors
 from telethon.sessions import StringSession
-from telethon.tl.types import InputPeerChannel
+from telethon.tl.types import BotCommand, BotCommandScopeDefault
+from telethon.tl.custom import Button
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -21,8 +21,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN") or ""
 if not all([API_ID, API_HASH, BOT_TOKEN]):
     raise ValueError("API_ID, API_HASH, BOT_TOKEN WAJIB di set di Railway Variables!")
 
-# DATABASE SQLITE
-DB_FILE = "/data/bot_sessions.db"  # path persistent di Railway (pakai volume)
+# DATABASE SQLITE (persistent di /data)
+DB_FILE = "/data/bot_sessions.db"
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -140,7 +140,70 @@ async def start_loops():
         if data.get('forward_running', False):
             asyncio.create_task(forward_loop(name))
 
-# BOT COMMANDS
+# SET COMMAND RESMI (biar suggestion muncul pas ketik /)
+async def set_bot_commands():
+    commands = [
+        BotCommand('menu', 'Lihat semua command'),
+        BotCommand('addakun', 'Tambah akun: nama session_string'),
+        BotCommand('deleteakun', 'Hapus akun'),
+        BotCommand('addpesan', 'Tambah pesan spam'),
+        BotCommand('deletepesan', 'Hapus semua pesan'),
+        BotCommand('addgrup', 'Tambah grup target'),
+        BotCommand('forward_add', 'Tambah target forward'),
+        BotCommand('listgrup', 'Lihat daftar grup'),
+        BotCommand('listpesan', 'Lihat daftar pesan'),
+        BotCommand('setdelay', 'Atur delay spam (detik)'),
+        BotCommand('setjitter', 'Atur jitter random (± detik)'),
+        BotCommand('setdelay_forward', 'Atur delay forward'),
+        BotCommand('spam_on', 'Nyalain spam'),
+        BotCommand('spam_off', 'Matikan spam'),
+        BotCommand('forward_on', 'Nyalain forward'),
+        BotCommand('forward_off', 'Matikan forward'),
+        BotCommand('cek_akun', 'Cek semua akun & status')
+    ]
+    await bot(functions.bots.SetBotCommandsRequest(
+        scope=BotCommandScopeDefault(),
+        lang_code='id',  # atau 'en' kalau mau bahasa Inggris
+        commands=commands
+    ))
+
+# COMMAND /MENU
+@bot.on(events.NewMessage(pattern=r'^/menu$'))
+async def menu(event):
+    menu_text = """
+🔥 **JINX SPAM BOT MENU** 🔥
+
+/addakun nama session_string → Tambah akun baru
+/deleteakun nama → Hapus akun
+/addpesan nama pesan → Tambah pesan spam
+/deletepesan nama → Hapus semua pesan
+/addgrup nama @grup → Tambah grup target
+/forward_add nama @channel → Tambah target forward
+/listgrup nama → Lihat daftar grup
+/listpesan nama → Lihat daftar pesan
+/setdelay nama 90 → Atur delay spam (detik)
+/setjitter nama 20 → Atur jitter (± detik)
+/setdelay_forward nama 120 → Atur delay forward
+/spam_on nama → Nyalain spam
+/spam_off nama → Matikan spam
+/forward_on nama → Nyalain forward
+/forward_off nama → Matikan forward
+/cek_akun → Cek semua akun & status
+
+Gunakan di chat privat dengan bot!
+    """
+    buttons = [
+        [Button.inline("🔄 Refresh Menu", b'refresh_menu')],
+        [Button.url("📢 Join Channel Jinx", "https://t.me/jinxchannel")]  # ganti kalau mau
+    ]
+    await event.reply(menu_text, buttons=buttons, parse_mode='md')
+
+@bot.on(events.CallbackQuery(data=b'refresh_menu'))
+async def refresh_menu(event):
+    await event.answer("Menu di-refresh! 🔥")
+    await menu(event)
+
+# COMMAND ADD AKUN
 @bot.on(events.NewMessage(pattern=r'^/addakun (\S+) (.+)'))
 async def add_akun(event):
     name, session_str = event.pattern_match.group(1), event.pattern_match.group(2)
@@ -162,12 +225,12 @@ async def add_akun(event):
     }
     save_account(name, data)
     akun_data[name] = data
-    await event.reply(f"✅ Akun '{name}' ditambahkan! Coba /cek_akun")
-    # Auto connect
+    await event.reply(f"✅ Akun '{name}' ditambahkan!")
     client = await get_client(name)
     if client:
         await event.reply(f"Login berhasil sebagai {name}")
 
+# COMMAND DELETE AKUN
 @bot.on(events.NewMessage(pattern=r'^/deleteakun (\S+)'))
 async def delete_akun(event):
     name = event.pattern_match.group(1)
@@ -180,6 +243,7 @@ async def delete_akun(event):
         del clients[name]
     await event.reply(f"🗑️ Akun '{name}' dihapus!")
 
+# COMMAND ADD PESAN
 @bot.on(events.NewMessage(pattern=r'^/addpesan (\S+) (.+)'))
 async def add_pesan(event):
     name, pesan = event.pattern_match.group(1), event.pattern_match.group(2)
@@ -190,6 +254,7 @@ async def add_pesan(event):
     save_account(name, akun_data[name])
     await event.reply(f"✅ Pesan ditambahkan ke {name}")
 
+# COMMAND DELETE PESAN
 @bot.on(events.NewMessage(pattern=r'^/deletepesan (\S+)'))
 async def delete_pesan(event):
     name = event.pattern_match.group(1)
@@ -200,6 +265,7 @@ async def delete_pesan(event):
     save_account(name, akun_data[name])
     await event.reply(f"🗑️ Semua pesan di {name} dihapus!")
 
+# COMMAND ADD GRUP
 @bot.on(events.NewMessage(pattern=r'^/addgrup (\S+) (.+)'))
 async def add_grup(event):
     name, grup = event.pattern_match.group(1), event.pattern_match.group(2)
@@ -210,6 +276,7 @@ async def add_grup(event):
     save_account(name, akun_data[name])
     await event.reply(f"✅ Grup {grup} ditambahkan ke {name}")
 
+# COMMAND FORWARD ADD
 @bot.on(events.NewMessage(pattern=r'^/forward_add (\S+) (.+)'))
 async def forward_add(event):
     name, target = event.pattern_match.group(1), event.pattern_match.group(2)
@@ -220,6 +287,7 @@ async def forward_add(event):
     save_account(name, akun_data[name])
     await event.reply(f"✅ Forward target {target} ditambahkan ke {name}")
 
+# COMMAND LIST GRUP
 @bot.on(events.NewMessage(pattern=r'^/listgrup (\S+)'))
 async def list_grup(event):
     name = event.pattern_match.group(1)
@@ -229,6 +297,7 @@ async def list_grup(event):
     groups = akun_data[name]['groups']
     await event.reply(f"Grup {name}:\n" + "\n".join(groups) if groups else "Kosong")
 
+# COMMAND LIST PESAN
 @bot.on(events.NewMessage(pattern=r'^/listpesan (\S+)'))
 async def list_pesan(event):
     name = event.pattern_match.group(1)
@@ -238,6 +307,7 @@ async def list_pesan(event):
     pesan = akun_data[name]['pesan_list']
     await event.reply(f"Pesan {name}:\n" + "\n".join(pesan) if pesan else "Kosong")
 
+# COMMAND SET DELAY
 @bot.on(events.NewMessage(pattern=r'^/setdelay (\S+) (\d+)'))
 async def set_delay(event):
     name, delay = event.pattern_match.group(1), int(event.pattern_match.group(2))
@@ -248,6 +318,7 @@ async def set_delay(event):
     save_account(name, akun_data[name])
     await event.reply(f"Delay {name} diatur ke {delay}s")
 
+# COMMAND SET JITTER
 @bot.on(events.NewMessage(pattern=r'^/setjitter (\S+) (\d+)'))
 async def set_jitter(event):
     name, jitter = event.pattern_match.group(1), int(event.pattern_match.group(2))
@@ -258,6 +329,7 @@ async def set_jitter(event):
     save_account(name, akun_data[name])
     await event.reply(f"Jitter {name} diatur ke ±{jitter}s")
 
+# COMMAND SET DELAY FORWARD
 @bot.on(events.NewMessage(pattern=r'^/setdelay_forward (\S+) (\d+)'))
 async def set_delay_forward(event):
     name, delay = event.pattern_match.group(1), int(event.pattern_match.group(2))
@@ -268,6 +340,7 @@ async def set_delay_forward(event):
     save_account(name, akun_data[name])
     await event.reply(f"Forward delay {name} diatur ke {delay}s")
 
+# COMMAND SPAM ON
 @bot.on(events.NewMessage(pattern=r'^/spam_on (\S+)'))
 async def spam_on(event):
     name = event.pattern_match.group(1)
@@ -279,6 +352,7 @@ async def spam_on(event):
     asyncio.create_task(spam_loop(name))
     await event.reply(f"Spam ON untuk {name}")
 
+# COMMAND SPAM OFF
 @bot.on(events.NewMessage(pattern=r'^/spam_off (\S+)'))
 async def spam_off(event):
     name = event.pattern_match.group(1)
@@ -289,6 +363,7 @@ async def spam_off(event):
     save_account(name, akun_data[name])
     await event.reply(f"Spam OFF untuk {name}")
 
+# COMMAND FORWARD ON
 @bot.on(events.NewMessage(pattern=r'^/forward_on (\S+)'))
 async def forward_on(event):
     name = event.pattern_match.group(1)
@@ -300,6 +375,7 @@ async def forward_on(event):
     asyncio.create_task(forward_loop(name))
     await event.reply(f"Forward ON untuk {name}")
 
+# COMMAND FORWARD OFF
 @bot.on(events.NewMessage(pattern=r'^/forward_off (\S+)'))
 async def forward_off(event):
     name = event.pattern_match.group(1)
@@ -310,7 +386,8 @@ async def forward_off(event):
     save_account(name, akun_data[name])
     await event.reply(f"Forward OFF untuk {name}")
 
-@bot.on(events.NewMessage(pattern=r'^/cek_akun'))
+# COMMAND CEK AKUN
+@bot.on(events.NewMessage(pattern=r'^/cek_akun$'))
 async def cek_akun(event):
     text = "Daftar akun:\n"
     for name in akun_data:
@@ -318,9 +395,10 @@ async def cek_akun(event):
         text += f"- {name}: {status} (pesan: {len(akun_data[name]['pesan_list'])}, grup: {len(akun_data[name]['groups'])})\n"
     await event.reply(text or "Belum ada akun!")
 
-# START BOT
+# MAIN
 async def main():
     await bot.start(bot_token=BOT_TOKEN)
+    await set_bot_commands()  # Daftarin command ke Telegram
     logger.info("Bot utama online!")
     await start_loops()
     await bot.run_until_disconnected()
