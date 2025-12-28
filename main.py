@@ -161,11 +161,11 @@ async def set_bot_commands():
         BotCommand('forward_off', 'Matikan forward'),
         BotCommand('cek_akun', 'Cek semua akun & status')
     ]
-    await bot(functions.bots.SetBotCommandsRequest(
-        scope=BotCommandScopeDefault(),
-        lang_code='id',  # atau 'en' kalau mau bahasa Inggris
-        commands=commands
-    ))
+    try:
+        await bot.set_bot_commands(commands, BotCommandScopeDefault(), 'id')
+        logger.info("Commands berhasil diset ke Telegram!")
+    except Exception as e:
+        logger.error(f"Gagal set commands: {e}")
 
 # COMMAND /MENU
 @bot.on(events.NewMessage(pattern=r'^/menu$'))
@@ -181,8 +181,8 @@ async def menu(event):
 /forward_add nama @channel → Tambah target forward
 /listgrup nama → Lihat daftar grup
 /listpesan nama → Lihat daftar pesan
-/setdelay nama 90 → Atur delay spam (detik)
-/setjitter nama 20 → Atur jitter (± detik)
+/setdelay nama 90 → Atur delay spam
+/setjitter nama 20 → Atur jitter
 /setdelay_forward nama 120 → Atur delay forward
 /spam_on nama → Nyalain spam
 /spam_off nama → Matikan spam
@@ -194,7 +194,7 @@ Gunakan di chat privat dengan bot!
     """
     buttons = [
         [Button.inline("🔄 Refresh Menu", b'refresh_menu')],
-        [Button.url("📢 Join Channel Jinx", "https://t.me/jinxchannel")]  # ganti kalau mau
+        [Button.url("📢 Join Channel Jinx", "https://t.me/jinxchannel")]
     ]
     await event.reply(menu_text, buttons=buttons, parse_mode='md')
 
@@ -398,7 +398,7 @@ async def cek_akun(event):
 # MAIN
 async def main():
     await bot.start(bot_token=BOT_TOKEN)
-    await set_bot_commands()  # Daftarin command ke Telegram
+    await set_bot_commands()  # Set command ke Telegram
     logger.info("Bot utama online!")
     await start_loops()
     await bot.run_until_disconnected()
