@@ -115,21 +115,25 @@ async def spam_loop(name):
                 logger.error(e)
         await asyncio.sleep(5)
 
-# FORWARD LOOP
+# FORWARD LOOP (ke semua groups)
 async def forward_loop(name):
     client = await get_client(name)
     if not client: return
     data = akun_data[name]
+    sources = data.get('forward_sources', [])
+    if not sources:
+        logger.info(f"{name}: forward aktif tapi gak ada source → skip")
+        return
     while data.get('forward_running', False):
-        for source in data.get('forward_sources', []):
+        for source in sources:
             try:
                 async for msg in client.iter_messages(source, limit=1):
                     if msg:
-                        for target in data.get('forward_targets', []):
+                        for target in data.get('groups', []):
                             await client.forward_messages(target, msg)
                             await asyncio.sleep(data.get('forward_delay', 120) + random.uniform(-data.get('jitter', 20), data.get('jitter', 20)))
             except Exception as e:
-                logger.error(f"Error forward dari {source}: {e}")
+                logger.error(f"Error forward {name} dari {source}: {e}")
         await asyncio.sleep(10)
 
 # START ALL LOOPS
@@ -149,9 +153,8 @@ async def set_bot_commands():
         BotCommand('deleteakun', 'Hapus akun'),
         BotCommand('addpesan', 'Tambah pesan spam'),
         BotCommand('deletepesan', 'Hapus semua pesan'),
-        BotCommand('addgrup', 'Tambah grup target'),
-        BotCommand('forward_source', 'Tambah source forward'),
-        BotCommand('forward_add', 'Tambah target forward'),
+        BotCommand('addgrup', 'Tambah grup (spam + forward target)'),
+        BotCommand('forward_source', 'Tambah channel sumber forward'),
         BotCommand('listgrup', 'Lihat daftar grup'),
         BotCommand('listpesan', 'Lihat daftar pesan'),
         BotCommand('setdelay', 'Atur delay spam'),
@@ -179,9 +182,8 @@ async def menu(event):
 /deleteakun nama → Hapus akun
 /addpesan nama pesan → Tambah pesan spam
 /deletepesan nama → Hapus semua pesan
-/addgrup nama @grup → Tambah grup target
-/forward_source nama @source_channel → Tambah channel sumber forward
-/forward_add nama @target_channel → Tambah channel tujuan forward
+/addgrup nama @grup → Tambah grup (spam + target forward)
+/forward_source nama @channel → Tambah channel sumber forward
 /listgrup nama → Lihat daftar grup
 /listpesan nama → Lihat daftar pesan
 /setdelay nama 90 → Atur delay spam
@@ -218,7 +220,6 @@ async def add_akun(event):
         "groups": [],
         "pesan_list": [],
         "forward_sources": [],
-        "forward_targets": [],
         "auto_emoji": True,
         "delay": 90,
         "jitter": 20,
@@ -268,16 +269,19 @@ async def delete_pesan(event):
     save_account(name, akun_data[name])
     await event.reply(f"🗑️ Semua pesan di {name} dihapus!")
 
-# COMMAND ADD GRUP
+# COMMAND ADD GRUP (buat spam & forward target)
 @bot.on(events.NewMessage(pattern=r'^/addgrup (\S+) (.+)'))
 async def add_grup(event):
     name, grup = event.pattern_match.group(1), event.pattern_match.group(2)
     if name not in akun_data:
         await event.reply("Akun tidak ditemukan!")
         return
-    akun_data[name]['groups'].append(grup)
-    save_account(name, akun_data[name])
-    await event.reply(f"✅ Grup {grup} ditambahkan ke {name}")
+    if grup not in akun_data[name]['groups']:
+        akun_data[name]['groups'].append(grup)
+        save_account(name, akun_data[name])
+        await event.reply(f"✅ Grup {grup} ditambahkan ke {name} (spam + target forward)")
+    else:
+        await event.reply(f"Grup {grup} sudah ada di {name}")
 
 # COMMAND ADD SOURCE FORWARD
 @bot.on(events.NewMessage(pattern=r'^/forward_source (\S+) (.+)'))
@@ -286,20 +290,12 @@ async def forward_source(event):
     if name not in akun_data:
         await event.reply("Akun tidak ditemukan!")
         return
-    akun_data[name]['forward_sources'].append(source)
-    save_account(name, akun_data[name])
-    await event.reply(f"✅ Source forward {source} ditambahkan ke {name}")
-
-# COMMAND ADD TARGET FORWARD
-@bot.on(events.NewMessage(pattern=r'^/forward_add (\S+) (.+)'))
-async def forward_add(event):
-    name, target = event.pattern_match.group(1), event.pattern_match.group(2)
-    if name not in akun_data:
-        await event.reply("Akun tidak ditemukan!")
-        return
-    akun_data[name]['forward_targets'].append(target)
-    save_account(name, akun_data[name])
-    await event.reply(f"✅ Target forward {target} ditambahkan ke {name}")
+    if source not in akun_data[name]['forward_sources']:
+        akun_data[name]['forward_sources'].append(source)
+        save_account(name, akun_data[name])
+        await event.reply(f"✅ Channel sumber {source} ditambahkan ke {name}")
+    else:
+        await event.reply(f"Channel {source} sudah ada di {name}")
 
 # COMMAND LIST GRUP
 @bot.on(events.NewMessage(pattern=r'^/listgrup (\S+)'))
@@ -384,6 +380,9 @@ async def forward_on(event):
     if name not in akun_data:
         await event.reply("Akun tidak ditemukan!")
         return
+    if not akun_data[name].get('forward_sources'):
+        await event.reply("Tambahin source channel dulu pake /forward_source!")
+        return
     akun_data[name]['forward_running'] = True
     save_account(name, akun_data[name])
     asyncio.create_task(forward_loop(name))
@@ -406,7 +405,7 @@ async def cek_akun(event):
     text = "Daftar akun:\n"
     for name in akun_data:
         status = "Online" if name in clients else "Offline"
-        text += f"- {name}: {status} (pesan: {len(akun_data[name]['pesan_list'])}, grup: {len(akun_data[name]['groups'])}, source: {len(akun_data[name]['forward_sources'])}, target: {len(akun_data[name]['forward_targets'])})\n"
+        text += f"- {name}: {status} (pesan: {len(akun_data[name]['pesan_list'])}, grup: {len(akun_data[name]['groups'])}, source: {len(akun_data[name]['forward_sources'])})\n"
     await event.reply(text or "Belum ada akun!")
 
 # MAIN
