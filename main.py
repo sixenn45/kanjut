@@ -269,18 +269,18 @@ async def add_pesan(event):
 async def delete_pesan(event):
     text = event.raw_text.strip()
     
-    # Hilangkan /deletepesan dan spasi awal
+    # Potong /deletepesan dan ambil sisanya
     parts = text[len('/deletepesan'):].strip().split(maxsplit=2)
     
     if len(parts) < 2:
-        await event.reply("Cara pakai salah bro!\nContoh: /deletepesan nama 3\n(3 adalah nomor urut pesan)")
+        await event.reply("Cara pakai salah bro!\nContoh: /deletepesan sox 3\n(3 adalah nomor urut pesan dari /listpesan)")
         return
     
     name = parts[0]
     try:
         index = int(parts[1]) - 1  # nomor urut mulai dari 1
     except ValueError:
-        await event.reply("Nomor urut harus angka bro! Contoh: /deletepesan nama 3")
+        await event.reply("Nomor urut harus angka bro! Contoh: /deletepesan sox 3")
         return
     
     if name not in akun_data:
@@ -300,7 +300,6 @@ async def delete_pesan(event):
     deleted_pesan = pesan_list.pop(index)
     save_account(name, akun_data[name])
     await event.reply(f"✅ Pesan nomor {index+1} di {name} berhasil dihapus!\n\nPreview yang dihapus:\n{deleted_pesan[:500]}{'...' if len(deleted_pesan) > 500 else ''}")
-
 # COMMAND ADD GRUP (spam + forward target)
 @bot.on(events.NewMessage(pattern=r'^/addgrup (\S+) (.+)'))
 async def add_grup(event):
