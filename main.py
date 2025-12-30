@@ -240,15 +240,22 @@ async def delete_akun(event):
     await event.reply(f"Akun '{name}' dihapus!")
 
 # COMMAND ADD PESAN
-@bot.on(events.NewMessage(pattern=r'^/addpesan (\S+) (.+)'))
+@bot.on(events.NewMessage(pattern=r'^/addpesan (\S+) (.*)'))
 async def add_pesan(event):
-    name, pesan = event.pattern_match.group(1), event.pattern_match.group(2)
+    name = event.pattern_match.group(1)
+    pesan = event.pattern_match.group(2).strip()  # strip biar spasi berlebih hilang
+    
     if name not in akun_data:
         await event.reply("Akun tidak ditemukan!")
         return
+    
+    if not pesan:
+        await event.reply("Pesan kosong bro! Cara pakai: /addpesan nama pesan_lo_di_sini (bisa panjang banget)")
+        return
+    
     akun_data[name]['pesan_list'].append(pesan)
     save_account(name, akun_data[name])
-    await event.reply(f"Pesan ditambahkan ke {name}")
+    await event.reply(f"✅ Pesan berhasil ditambahkan ke {name}\nPanjang: {len(pesan)} karakter")
 
 # COMMAND DELETE PESAN
 @bot.on(events.NewMessage(pattern=r'^/deletepesan (\S+)'))
