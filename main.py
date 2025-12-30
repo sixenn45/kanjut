@@ -272,7 +272,32 @@ async def delete_pesan(event):
         await event.reply("Akun tidak ditemukan!")
         return
     akun_data[name]['pesan_list'] = []
+    save_account(name, akun_data[name])@bot.on(events.NewMessage(pattern=r'^/deletepesan (\S+) (\d+)$'))
+async def delete_pesan(event):
+    name = event.pattern_match.group(1)
+    try:
+        index = int(event.pattern_match.group(2)) - 1  # -1 karena list mulai dari 0
+    except ValueError:
+        await event.reply("Nomor urut harus angka bro! Contoh: /deletepesan nama 1")
+        return
+    
+    if name not in akun_data:
+        await event.reply("Akun tidak ditemukan!")
+        return
+    
+    pesan_list = akun_data[name]['pesan_list']
+    
+    if not pesan_list:
+        await event.reply(f"Pesan di {name} sudah kosong!")
+        return
+    
+    if index < 0 or index >= len(pesan_list):
+        await event.reply(f"Nomor urut gak valid! Ada {len(pesan_list)} pesan.\nCek dulu pake /listpesan {name}")
+        return
+    
+    deleted_pesan = pesan_list.pop(index)
     save_account(name, akun_data[name])
+    await event.reply(f"✅ Pesan nomor {index+1} di {name} berhasil dihapus!\n\nPreview yang dihapus:\n{deleted_pesan[:500]}{'...' if len(deleted_pesan) > 500 else ''}")
     await event.reply(f"Semua pesan di {name} dihapus!")
 
 # COMMAND ADD GRUP (spam + forward target)
@@ -320,9 +345,18 @@ async def list_pesan(event):
     if name not in akun_data:
         await event.reply("Akun tidak ditemukan!")
         return
-    pesan = akun_data[name]['pesan_list']
-    await event.reply(f"Pesan {name}:\n" + "\n".join(pesan) if pesan else "Kosong")
-
+    
+    pesan_list = akun_data[name]['pesan_list']
+    if not pesan_list:
+        await event.reply(f"Pesan {name}: Kosong")
+        return
+    
+    text = f"📋 Daftar pesan {name} ({len(pesan_list)} pesan):\n\n"
+    for i, pesan in enumerate(pesan_list, 1):
+        preview = pesan.replace('\n', ' ').strip()[:100]
+        text += f"{i}. {preview}{'.' if len(pesan) <= 100 else '...'} (panjang: {len(pesan)} char)\n"
+    
+    await event.reply(text)
 # COMMAND SET DELAY
 @bot.on(events.NewMessage(pattern=r'^/setdelay (\S+) (\d+)'))
 async def set_delay(event):
