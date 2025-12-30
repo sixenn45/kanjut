@@ -259,10 +259,6 @@ async def add_pesan(event):
     akun_data[name]['pesan_list'].append(pesan)
     save_account(name, akun_data[name])
     await event.reply(f"✅ Pesan berhasil ditambahkan ke {name}\nPanjang: {len(pesan)} karakter\n\nPreview:\n{pesan[:500]}{'...' if len(pesan) > 500 else ''}")
-    
-    akun_data[name]['pesan_list'].append(pesan)
-    save_account(name, akun_data[name])
-    await event.reply(f"✅ Pesan berhasil ditambahkan ke {name}\nPanjang: {len(pesan)} karakter")
 
 # COMMAND DELETE PESAN
 @bot.on(events.NewMessage(pattern=r'^/deletepesan', incoming=True))
