@@ -265,20 +265,22 @@ async def add_pesan(event):
     await event.reply(f"✅ Pesan berhasil ditambahkan ke {name}\nPanjang: {len(pesan)} karakter")
 
 # COMMAND DELETE PESAN
-@bot.on(events.NewMessage(pattern=r'^/deletepesan (\S+)'))
+@bot.on(events.NewMessage(pattern=r'^/deletepesan', incoming=True))
 async def delete_pesan(event):
-    name = event.pattern_match.group(1)
-    if name not in akun_data:
-        await event.reply("Akun tidak ditemukan!")
+    text = event.raw_text.strip()
+    
+    # Hilangkan /deletepesan dan spasi awal
+    parts = text[len('/deletepesan'):].strip().split(maxsplit=2)
+    
+    if len(parts) < 2:
+        await event.reply("Cara pakai salah bro!\nContoh: /deletepesan nama 3\n(3 adalah nomor urut pesan)")
         return
-    akun_data[name]['pesan_list'] = []
-    save_account(name, akun_data[name])@bot.on(events.NewMessage(pattern=r'^/deletepesan (\S+) (\d+)$'))
-async def delete_pesan(event):
-    name = event.pattern_match.group(1)
+    
+    name = parts[0]
     try:
-        index = int(event.pattern_match.group(2)) - 1  # -1 karena list mulai dari 0
+        index = int(parts[1]) - 1  # nomor urut mulai dari 1
     except ValueError:
-        await event.reply("Nomor urut harus angka bro! Contoh: /deletepesan nama 1")
+        await event.reply("Nomor urut harus angka bro! Contoh: /deletepesan nama 3")
         return
     
     if name not in akun_data:
@@ -298,7 +300,6 @@ async def delete_pesan(event):
     deleted_pesan = pesan_list.pop(index)
     save_account(name, akun_data[name])
     await event.reply(f"✅ Pesan nomor {index+1} di {name} berhasil dihapus!\n\nPreview yang dihapus:\n{deleted_pesan[:500]}{'...' if len(deleted_pesan) > 500 else ''}")
-    await event.reply(f"Semua pesan di {name} dihapus!")
 
 # COMMAND ADD GRUP (spam + forward target)
 @bot.on(events.NewMessage(pattern=r'^/addgrup (\S+) (.+)'))
